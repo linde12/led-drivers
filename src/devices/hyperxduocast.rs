@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use hidapi::{HidApi, HidResult};
 
 use super::Rgb;
@@ -7,11 +5,17 @@ use super::Rgb;
 /// HyperX DuoCast Controller
 const VENDOR_ID: u16 = 0x03f0;
 const PRODUCT_ID: u16 = 0x098c;
+const HYPERX_PACKET_SIZE: usize = 65;
 
-const TRANSACTION_START: [u8; 9] = [0x00, 0x04, 0x53, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01];
+const SAVE_TRANSACTION_START_PKT: [u8; HYPERX_PACKET_SIZE] = {
+    let mut buffer: [u8; HYPERX_PACKET_SIZE] = [0u8; HYPERX_PACKET_SIZE];
+    buffer[0x01] = 0x04;
+    buffer[0x02] = 0x53; // Save to on-board memory
+    buffer
+};
 
-const TRANSACTION_END: [u8; 65] = {
-    let mut buffer = [0u8; 65];
+const TRANSACTION_END_PKT: [u8; HYPERX_PACKET_SIZE] = {
+    let mut buffer: [u8; HYPERX_PACKET_SIZE] = [0u8; HYPERX_PACKET_SIZE];
     buffer[0x01] = 0x08;
     buffer[0x3C] = 0x28;
     buffer[0x3D] = 0x01;
@@ -21,12 +25,15 @@ const TRANSACTION_END: [u8; 65] = {
     buffer
 };
 
-fn set_color_pkt(Rgb(r, g, b): Rgb) -> [u8; 9] {
-    let mut buffer: [u8; 9] = [0u8; 9];
+fn build_color_pkt(Rgb(r, g, b): Rgb) -> [u8; HYPERX_PACKET_SIZE] {
+    let mut buffer: [u8; HYPERX_PACKET_SIZE] = [0u8; HYPERX_PACKET_SIZE];
+    // upper LED array
     buffer[0x01] = 0x81;
     buffer[0x02] = r;
     buffer[0x03] = g;
     buffer[0x04] = b;
+
+    // lower LED array
     buffer[0x05] = 0x81;
     buffer[0x06] = r;
     buffer[0x07] = g;
@@ -34,26 +41,18 @@ fn set_color_pkt(Rgb(r, g, b): Rgb) -> [u8; 9] {
     buffer
 }
 
-pub fn setup(color: Rgb) -> HidResult<()> {
+pub fn setup(color: Rgb) -> anyhow::Result<()> {
     let api = HidApi::new()?;
 
-    for device_info in api.device_list() {
-        if device_info.vendor_id() == VENDOR_ID && device_info.product_id() == PRODUCT_ID {
-            // TODO: reverse-engineer out how to save to on-board memory if there is any...
-            let device = api.open(VENDOR_ID, PRODUCT_ID)?;
+    api.device_list()
+        .find(|d| d.vendor_id() == VENDOR_ID && d.product_id() == PRODUCT_ID)
+        .ok_or_else(|| anyhow::anyhow!("HyperX DuoCast device not found"))?;
 
-            device.send_feature_report(&TRANSACTION_START)?;
-            std::thread::sleep(Duration::from_millis(15));
+    let device = api.open(VENDOR_ID, PRODUCT_ID)?;
 
-            device.send_feature_report(&set_color_pkt(color))?;
-            std::thread::sleep(Duration::from_millis(15));
-
-            device.send_feature_report(&TRANSACTION_END)?;
-            std::thread::sleep(Duration::from_millis(15));
-
-            return Ok(()); // just run once
-        }
-    }
+    device.send_feature_report(&SAVE_TRANSACTION_START_PKT)?;
+    device.send_feature_report(&build_color_pkt(color))?;
+    device.send_feature_report(&TRANSACTION_END_PKT)?;
 
     Ok(())
 }

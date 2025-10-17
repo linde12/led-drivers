@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.75"
 clap = { version = "4.4.2", features = ["derive"] }
-hidapi = "2.4.1"
+hidapi = { version = "2.6.3", features = ["linux-static-libusb"], default-features = false }
 thiserror = "1.0.48"

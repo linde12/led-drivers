@@ -9,10 +9,7 @@ pub struct Rgb(pub u8, pub u8, pub u8);
 
 #[derive(Error, Debug)]
 pub enum ParseHexError {
-    #[error("missing prefix")]
-    MissingPrefix,
-
-    #[error("bad string, format must be 0xAABBCC")]
+    #[error("bad string, must be hexadecimal in the format 0xRRGGBB or RRGGBB")]
     BadString,
 }
 
@@ -29,7 +26,11 @@ impl FromStr for Rgb {
     type Err = ParseHexError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.strip_prefix("0x").ok_or(ParseHexError::MissingPrefix)?;
+        let s = s.strip_prefix("0x").unwrap_or(s);
+
+        if s.len() != 6 {
+            return Err(ParseHexError::BadString);
+        }
 
         usize::from_str_radix(s, 16)
             .map(|n| n.into())
@@ -53,6 +54,7 @@ mod tests {
         assert_eq!(g, 0x00);
         assert_eq!(b, 0xee);
     }
+
     #[test]
     fn str_to_rgb() {
         let rgb: Result<Rgb, _> = "0xff00ee".parse();
@@ -61,5 +63,27 @@ mod tests {
         assert_eq!(r, 0xff);
         assert_eq!(g, 0x00);
         assert_eq!(b, 0xee);
+    }
+
+    #[test]
+    fn str_to_rgb_no_prefix() {
+        let rgb: Result<Rgb, _> = "ff00ee".parse();
+        assert!(rgb.is_ok());
+        let Rgb(r, g, b) = rgb.unwrap();
+        assert_eq!(r, 0xff);
+        assert_eq!(g, 0x00);
+        assert_eq!(b, 0xee);
+    }
+
+    #[test]
+    fn str_to_rgb_bad_length() {
+        let rgb: Result<Rgb, _> = "ff00e".parse();
+        assert!(rgb.is_err());
+    }
+
+    #[test]
+    fn str_to_rgb_bad_hex() {
+        let rgb: Result<Rgb, _> = "HHJJKK".parse();
+        assert!(rgb.is_err());
     }
 }

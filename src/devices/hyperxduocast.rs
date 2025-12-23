@@ -1,6 +1,6 @@
-use hidapi::{HidApi, HidResult};
+use hidapi::HidApi;
 
-use super::Rgb;
+use super::{Rgb, SetupError};
 
 /// HyperX DuoCast Controller
 const VENDOR_ID: u16 = 0x03f0;
@@ -10,7 +10,7 @@ const HYPERX_PACKET_SIZE: usize = 65;
 const SAVE_TRANSACTION_START_PKT: [u8; HYPERX_PACKET_SIZE] = {
     let mut buffer: [u8; HYPERX_PACKET_SIZE] = [0u8; HYPERX_PACKET_SIZE];
     buffer[0x01] = 0x04;
-    buffer[0x02] = 0x53; // Save to on-board memory
+    buffer[0x02] = 0x53; // Save to on-board memory, 0xF3 = temporary
     buffer
 };
 
@@ -41,12 +41,12 @@ fn build_color_pkt(Rgb(r, g, b): Rgb) -> [u8; HYPERX_PACKET_SIZE] {
     buffer
 }
 
-pub fn setup(color: Rgb) -> anyhow::Result<()> {
+pub fn setup(color: Rgb) -> Result<(), SetupError> {
     let api = HidApi::new()?;
 
     api.device_list()
         .find(|d| d.vendor_id() == VENDOR_ID && d.product_id() == PRODUCT_ID)
-        .ok_or_else(|| anyhow::anyhow!("HyperX DuoCast device not found"))?;
+        .ok_or_else(|| SetupError::DeviceNotFound("HyperX DuoCast"))?;
 
     let device = api.open(VENDOR_ID, PRODUCT_ID)?;
 

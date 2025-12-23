@@ -13,8 +13,5 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-
-    if let Err(e) = devices::setup(args.color) {
-        eprintln!("error setting up devices: {}", e);
-    }
+    devices::setup(args.color);
 }

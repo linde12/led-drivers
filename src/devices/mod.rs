@@ -1,4 +1,3 @@
-use anyhow;
 mod hyperxduocast;
 mod lianliinf;
 use std::str::FromStr;
@@ -6,6 +5,15 @@ use thiserror::Error;
 
 #[derive(Debug, Clone)]
 pub struct Rgb(pub u8, pub u8, pub u8);
+
+#[derive(Error, Debug)]
+pub enum SetupError {
+    #[error("device not found: {0}")]
+    DeviceNotFound(&'static str),
+
+    #[error("HID API error: {0}")]
+    HidApiError(#[from] hidapi::HidError),
+}
 
 #[derive(Error, Debug)]
 pub enum ParseHexError {
@@ -38,10 +46,14 @@ impl FromStr for Rgb {
     }
 }
 
-pub fn setup(color: Rgb) -> anyhow::Result<()> {
-    lianliinf::setup()?; // don't use color, just sync with motherboard
-    hyperxduocast::setup(color)?;
-    Ok(())
+pub fn setup(color: Rgb) {
+    if let Err(e) = lianliinf::setup() {
+        eprintln!("LianLi SL Infinity setup failed: {}", e);
+    }
+
+    if let Err(e) = hyperxduocast::setup(color) {
+        eprintln!("HyperX DuoCast setup failed: {}", e);
+    }
 }
 
 #[cfg(test)]
